@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teszt oldal</title>
+  </head>
+  <body>
+    <h1>Teszt oldalon!</h1>
+    <div id="lobby">
+      <button id="createRoomButton">Szoba létrehozása</button>
+      <input id="roomCodeInput" placeholder="Szoba kódja" />
+      <button id="joinRoomButton">Csatlakozás szobához</button>
+    </div>
+    <div id="players"></div>
+    <div id="quiz" style="display: none">
+      <h1>Lobby</h1>
+      <div style="display: flex">
+        <p>roomCode:</p>
+        <p id="roomCode"></p>
+      </div>
+      <button id="startGameButton">Játék indítása</button>
+      <div id="ready"></div>
+      <div style="display: flex; flex-direction: column">
+        <p id="timer"></p>
+        <p id="status"></p>
+        <div id="question"></div>
+        <div id="answers"></div>
+      </div>
+    </div>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"
+      integrity="sha512-luMnTJZ7oEchNDZAtQhgjomP1eZefnl82ruTH/3Oj/Yu5qYtwL7+dVRccACS/Snp1lFXq188XFipHKYE75IaQQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="../scripts/client.js"></script>
+  </body>
+</html>
