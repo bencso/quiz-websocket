@@ -79,6 +79,8 @@ function generateRoomCode() {
 }
 
 function showResults(roomCode, questions) {
+  clearTimeout(resultTimer);
+  clearTimeout(rooms[roomCode].timer)
   io.to(roomCode).emit("roundEnded", rooms[roomCode].players);
   if (
     rooms[roomCode].currentQuestionIndex > 0 &&
@@ -102,9 +104,9 @@ function nextRound(questions, roomCode) {
   /* --------TIMER---------- */
   rooms[roomCode].timer = setTimeout(() => {
     if (rooms[roomCode].currentQuestionIndex >= questions.length) {
-      io.to(roomCode).emit("gameEnded", rooms[roomCode].players);
       clearTimeout(rooms[roomCode].timer);
       clearTimeout(resultTimer);
+      io.to(roomCode).emit("gameEnded", rooms[roomCode].players);
       delete rooms[roomCode];
     } else {
       showResults(roomCode, questions);
@@ -142,7 +144,7 @@ function createRoom(socket) {
   rooms[roomCode] = new Room({}, 0, 0, null, 5);
 
   socket.join(roomCode);
-  rooms[roomCode].players[socket.id] = new Player(socket.id, 0, false);
+  rooms[roomCode].players[socket.id] = new Player(socket.id, 0, false, true);
 
   socket.emit("roomCreated", roomCode);
   io.to(roomCode).emit("updatePlayers", Object.values(rooms[roomCode].players));
@@ -151,7 +153,7 @@ function createRoom(socket) {
 function joinRoom(socket, roomCode) {
   if (rooms[roomCode]) {
     socket.join(roomCode);
-    rooms[roomCode].players[socket.id] = new Player(socket.id, 0, false);
+    rooms[roomCode].players[socket.id] = new Player(socket.id, 0, false, false);
     io.to(roomCode).emit(
       "updatePlayers",
       Object.values(rooms[roomCode].players)

@@ -15,10 +15,11 @@ class Room {
 }
 
 class Player {
-  constructor(socketId, score, answered) {
+  constructor(socketId, score, answered, author) {
     this.socketId = socketId;
     this.score = score;
     this.answered = answered;
+    this.author = author;
   }
 }
 
