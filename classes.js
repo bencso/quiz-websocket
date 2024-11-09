@@ -19,7 +19,7 @@ class Player {
     this.socketId = socketId;
     this.score = score;
     this.answered = answered;
-    this.author = author;
+    this.owner = author;
   }
 }
 

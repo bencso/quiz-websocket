@@ -1,104 +1,122 @@
+// Változók
 const socket = io("http://localhost:3000");
 let timer = 0;
-
-document.getElementById("createRoomButton").onclick = () => {
+const elements = {
+  lobby: document.getElementById("lobby"),
+  quiz: document.getElementById("quiz"),
+  roomCode: document.getElementById("roomCode"),
+  players: document.getElementById("players"),
+  question: document.getElementById("question"),
+  answers: document.getElementById("answers"),
+  timer: document.getElementById("timer"),
+  ready: document.getElementById("ready"),
+  status: document.getElementById("status"),
+  createRoomButton: document.getElementById("createRoomButton"),
+  joinRoomButton: document.getElementById("joinRoomButton"),
+  roomCodeInput: document.getElementById("roomCodeInput"),
+  startGameButton: document.getElementById("startGameButton"),
+  testButton: document.getElementById("testButton"),
+};
+// Szoba manipulációk
+elements.createRoomButton.onclick = () => {
   socket.emit("createRoom");
 };
-
-document.getElementById("joinRoomButton").onclick = () => {
-  let roomCode = document.getElementById("roomCodeInput").value;
+elements.joinRoomButton.onclick = () => {
+  const roomCode = elements.roomCodeInput.value;
   socket.emit("joinRoom", roomCode);
 };
-
 socket.on("roomCreated", (roomCode) => {
-  document.getElementById("lobby").style.display = "none";
-  document.getElementById("quiz").style.display = "block";
-  document.getElementById("roomCode").innerText = roomCode;
+  switchToQuizView(roomCode);
+  createStartButton(roomCode);
 });
-
-socket.on("roomJoined", (roomCode) => {
-  document.getElementById("lobby").style.display = "none";
-  document.getElementById("quiz").style.display = "block";
-  document.getElementById("roomCode").innerText = roomCode;
-});
-
+socket.on("roomDeleted", resetLobbyView);
+socket.on("roomJoined", switchToQuizView);
 socket.on("roomNotFound", () => {
   alert("A megadott kóddal nem található szoba.");
 });
-
-socket.on("updatePlayers", (players) => {
+socket.on("gameEnded", () => {
+  elements.status.innerText = "Vége a játéknak!";
+});
+// Játékos függvények
+socket.on("updatePlayers", updatePlayersList);
+socket.on("playerAnswered", (socketId, answer, readyPlayers) => {
+  elements.status.innerText = `${socketId} válaszolt: ${answer}`;
+  elements.ready.innerText = `Kész játékosok: ${readyPlayers}`;
+});
+// Körös függvények
+socket.on("roundStarted", startRound);
+socket.on("roundEnded", (players) => {
+  elements.status.innerText = "Vége a körnek!";
   updatePlayersList(players);
 });
-
-socket.on("playerAnswered", (socketId, answer, readyPlayers) => {
-  document.getElementById(
-    "status"
-  ).innerText = `${socketId} válaszolt: ${answer}`;
-  document.getElementById(
-    "ready"
-  ).innerText = `Kész játékosok: ${readyPlayers}`;
-});
-
-socket.on("roundStarted", (questions, timerDuration) => {
-  document.getElementById("status").innerText =
-    "A kör elkezdődött! Válaszolj a kérdésre!";
-  document.getElementById("ready").innerText = "Kész játékosok: 0";
+elements.startGameButton.onclick = () => {
+  socket.emit("startGame", elements.roomCode.innerText);
+};
+elements.testButton.onclick = () => {
+  socket.emit("playerAnswer", elements.roomCode.innerText, socket.id, "A");
+};
+// Segédfüggvények
+function switchToQuizView(roomCode) {
+  elements.lobby.style.display = "none";
+  elements.quiz.style.display = "block";
+  elements.roomCode.innerText = roomCode;
+}
+function resetLobbyView() {
+  elements.lobby.style.display = "block";
+  elements.quiz.style.display = "none";
+  elements.players.innerHTML = "";
+  elements.question.innerText = "";
+  elements.answers.innerHTML = "";
+  elements.timer.innerText = "";
+  elements.ready.innerText = "";
+  elements.status.innerText = "";
+  elements.roomCode.innerText = "";
+  elements.quiz.removeChild(elements.quiz.lastChild);
+}
+function createStartButton(roomCode) {
+  const startBtn = document.createElement("button");
+  startBtn.innerText = "Játék indítása";
+  startBtn.onclick = () => {
+    socket.emit("startGame", roomCode);
+  };
+  elements.quiz.appendChild(startBtn);
+}
+function startRound(questions, timerDuration) {
+  elements.status.innerText = "A kör elkezdődött! Válaszolj a kérdésre!";
+  elements.ready.innerText = "Kész játékosok: 0";
   timer = timerDuration;
   const timerInterval = setInterval(() => {
     timer--;
-    document.getElementById("timer").innerText = timer;
+    elements.timer.innerText = timer;
     if (timer === 0) {
       clearInterval(timerInterval);
     }
   }, 1000);
-  const question = questions;
-  document.getElementById("question").innerText = question.question;
-  const answers = document.getElementById("answers");
-  answers.innerHTML = "";
+  displayQuestion(questions);
+}
+function displayQuestion(question) {
+  elements.question.innerText = question.question;
+  elements.answers.innerHTML = "";
   question.answers.forEach((answer) => {
     const answerElement = document.createElement("button");
     answerElement.innerText = answer;
     answerElement.onclick = () => {
       socket.emit(
         "playerAnswer",
-        document.getElementById("roomCode").innerText,
+        elements.roomCode.innerText,
         socket.id,
         answer
       );
     };
-    answers.appendChild(answerElement);
+    elements.answers.appendChild(answerElement);
   });
-});
-
-socket.on("roundEnded", (players) => {
-  document.getElementById("status").innerText = "Vége a körnek!";
-  updatePlayersList(players);
-});
-
-socket.on("gameEnded", (players) => {
-  document.getElementById("status").innerText = "Vége a játéknak!";
-});
-
+}
 function updatePlayersList(players) {
-  const playersDiv = document.getElementById("players");
-  playersDiv.innerHTML = "";
+  elements.players.innerHTML = "";
   for (const id in players) {
     const player = players[id];
-    const playerElement = document.createElement("div");
+    const playerElement = document.createElement("p");
     playerElement.textContent = `${player.socketId}: ${player.score} pont`;
-    playersDiv.appendChild(playerElement);
+    elements.players.appendChild(playerElement);
   }
 }
-
-document.getElementById("startGameButton").onclick = () => {
-  socket.emit("startGame", document.getElementById("roomCode").innerText);
-};
-
-document.getElementById("testButton").onclick = () => {
-  socket.emit(
-    "playerAnswer",
-    document.getElementById("roomCode").innerText,
-    socket.id,
-    "A"
-  );
-};

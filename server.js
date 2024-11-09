@@ -1,8 +1,8 @@
 const express = require("express");
+const path = require("path");
 const cookieParser = require("cookie-parser");
 const { v4: uuidv4 } = require("uuid");
-const path = require("path");
-var cookie = require("cookie");
+const cookie = require("cookie");
 const { Room, Player } = require("./classes");
 /* --------KONFIGURÁCIÓK---------- */
 const app = express();
@@ -22,7 +22,6 @@ const io = require("socket.io")(server, {
       name: "io",
       path: "/",
       httpOnly: true,
-      sameSite: "lax",
     },
   },
 });
@@ -37,7 +36,6 @@ app.set("views", "./public/views");
 /* --------VÁLTOZÓK---------- */
 let clients = {};
 let rooms = {};
-let clientId;
 let resultTimer;
 /* --------FÜGGVÉNYEK---------- */
 function findClient(req, res) {
@@ -74,13 +72,15 @@ function fetchQuestions() {
     },
   ];
 }
+//? Lehet nem a legjobb kód generátor, erre lehet keresni másikat akár.
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 7).toUpperCase();
 }
 
 function showResults(roomCode, questions) {
+  if (!rooms[roomCode]) return;
   clearTimeout(resultTimer);
-  clearTimeout(rooms[roomCode].timer)
+  clearTimeout(rooms[roomCode].timer);
   io.to(roomCode).emit("roundEnded", rooms[roomCode].players);
   if (
     rooms[roomCode].currentQuestionIndex > 0 &&
@@ -89,10 +89,11 @@ function showResults(roomCode, questions) {
     resultTimer = setTimeout(() => {
       clearTimeout(resultTimer);
       nextRound(questions, roomCode);
-    }, 5000);
+    }, 5000); // 5 másodperc
   }
 }
 function nextRound(questions, roomCode) {
+  if (!rooms[roomCode]) return;
   /* --------KÉRDÉS---------- */
   const question = questions[rooms[roomCode].currentQuestionIndex];
   timer = rooms[roomCode].roundDuration;
@@ -103,11 +104,13 @@ function nextRound(questions, roomCode) {
   rooms[roomCode].readyPlayers = 0;
   /* --------TIMER---------- */
   rooms[roomCode].timer = setTimeout(() => {
-    if (rooms[roomCode].currentQuestionIndex >= questions.length) {
+    if (rooms[roomCode].currentQuestionIndex > questions.length) {
       clearTimeout(rooms[roomCode].timer);
       clearTimeout(resultTimer);
       io.to(roomCode).emit("gameEnded", rooms[roomCode].players);
-      delete rooms[roomCode];
+      clearTimeout(rooms[roomCode].timer);
+      clearTimeout(resultTimer);
+      rooms[roomCode] = null;
     } else {
       showResults(roomCode, questions);
     }
@@ -122,7 +125,7 @@ app.get("/", function (req, res) {
 app.post("/setuser", function (req, res) {
   let clientId = uuidv4();
   if (!req.body.clientId) {
-    res.cookie(`clientId`, clientId, { maxAge: 43200000 }); // 12 hours
+    res.cookie(`clientId`, clientId, { maxAge: 43200000 }); // 12 óra
     res.redirect("/");
   } else {
     res.render("login");
@@ -135,7 +138,6 @@ function connected(socket) {
     socket.clientId = cookie.parse(socketCookie).clientId;
     clients[socket.clientId] = { clientId: socket.clientId };
   }
-  /* ------------------ */
   socket.join("lobby");
 }
 
@@ -168,19 +170,27 @@ function disconnect(socket) {
   for (const roomCode in rooms) {
     const room = rooms[roomCode];
     if (room.players[socket.id]) {
-      delete room.players[socket.id];
-      io.to(roomCode).emit(
-        "updatePlayers",
-        Object.values(rooms[roomCode].players)
-      );
-
+      io.to(roomCode).emit("updatePlayers", Object.values(room.players));
       if (Object.keys(room.players).length === 0) {
-        delete rooms[roomCode];
+        clearTimeout(room.timer);
+        clearTimeout(resultTimer);
+        rooms[roomCode] = null;
+      } else if (room.players[socket.id].owner) {
+        gameEnded(roomCode);
       }
     }
+    delete room.players[socket.id];
   }
 }
-/* --------ENDPOINTS---------- */
+
+function gameEnded(roomCode) {
+  io.to(roomCode).emit("gameEnded", rooms[roomCode].players);
+  io.to(roomCode).emit("roomDeleted");
+  clearTimeout(rooms[roomCode].timer);
+  clearTimeout(resultTimer);
+  rooms[roomCode] = null;
+}
+/* --------VÉGPONTOK---------- */
 io.on("connection", (socket) => {
   connected(socket);
   socket.on("createRoom", () => {
@@ -197,6 +207,7 @@ io.on("connection", (socket) => {
     const questions = fetchQuestions();
     rooms[roomCode].players[id].answered = true;
     rooms[roomCode].readyPlayers++;
+    io.to(roomCode).emit("playerAnswered", id, _, rooms[roomCode].readyPlayers);
     if (
       rooms[roomCode].readyPlayers ===
       Object.keys(rooms[roomCode].players).length
